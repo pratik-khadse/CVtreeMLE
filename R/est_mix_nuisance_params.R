@@ -107,7 +107,7 @@ est_mix_nuisance_params <- function(at,
       exposures_used <- unique(unlist(strsplit(rule_data$test, split = "-")))
       other_a <- a[!a %in% exposures_used]
 
-      task_at <- sl3::make_sl3_Task(
+      task_at <- make_cluster_task(
         data = at_mix,
         covariates = w,
         outcome = "A_mix",
@@ -115,7 +115,7 @@ est_mix_nuisance_params <- function(at,
         folds = 10
       )
 
-      task_av <- sl3::make_sl3_Task(
+      task_av <- make_cluster_task(
         data = av_mix,
         covariates = w,
         outcome = "A_mix",
@@ -137,7 +137,7 @@ est_mix_nuisance_params <- function(at,
         h_aw_trunc_lvl = h_aw_trunc_lvl
       )
 
-      task_at <- sl3::make_sl3_Task(
+      task_at <- make_cluster_task(
         data = at_mix,
         covariates = c(w, "A_mix", other_a),
         outcome = y,
@@ -148,7 +148,7 @@ est_mix_nuisance_params <- function(at,
       x_m1 <- av_mix
       x_m1$A_mix <- 1 # under exposure
 
-      task_av <- sl3::make_sl3_Task(
+      task_av <- make_cluster_task(
         data = av_mix,
         covariates = c(w, "A_mix", other_a),
         outcome = y,
@@ -156,7 +156,7 @@ est_mix_nuisance_params <- function(at,
         folds = 10
       )
 
-      task_av_1 <- sl3::make_sl3_Task(
+      task_av_1 <- make_cluster_task(
         data = x_m1,
         covariates = c(w, "A_mix", other_a),
         outcome = y,

@@ -53,6 +53,26 @@
 #' @param min_max Which oracle region to go after the one that minimizes or maximizes the outcome.
 #' @param min_obs Minimum number of observations to have in a region.
 #' @param max_depth Maximum depth to partition the exposures
+#' @param p_val_thresh P-value threshold for the tree search: a split is only
+#' accepted if its test p-value is below this value. Default 0.1.
+#' @param id Optional cluster identifier(s) for cluster-robust standard
+#' errors, for data where observations are not independent (e.g. siblings in a
+#' family, patients in a hospital). Either the name(s) of columns in
+#' \code{data}, a vector with one value per row, or a list / data frame with
+#' one element per clustering variable. When given: (1) the CV-TMLE folds keep
+#' each cluster within one fold, (2) the Super Learners for the Q and g
+#' estimates group their internal cross-validation by cluster, (3) standard
+#' errors sum the influence curve within clusters before taking the variance
+#' (the influence-curve form of \code{sandwich::vcovCL()}), using the Cameron,
+#' Gelbach & Miller (2011) estimator when there is more than one clustering
+#' variable, and (4) confidence intervals and p-values use t critical values
+#' with (number of clusters - 1) degrees of freedom. Id columns are used only
+#' for clustering; they are not covariates unless also listed in \code{w}.
+#' Default \code{NULL} gives the usual independent-observation results.
+#' @param folds_by With several clustering variables, the name of the one to
+#' form CV folds on. By default folds keep every clustering variable intact
+#' when possible (connected components), and otherwise fall back to the
+#' coarsest variable with at least \code{n_folds} clusters.
 #' @details The function performs the following functions.
 #'  \enumerate{
 #'  \item Imputes missing values with the mean and creates dummy indicator
@@ -211,7 +231,9 @@
                       region = NULL,
                       max_depth = 2,
                       min_obs = 25,
-                      p_val_thresh = 0.1) {
+                      p_val_thresh = 0.1,
+                      id = NULL,
+                      folds_by = NULL) {
   if (any(sapply(data[, a], is.factor))) {
     print("Factor variable detected in exposures, converting to numeric")
     data[, a] <- sapply(data[, a], as.numeric)
@@ -266,7 +288,32 @@
     aw_stack <- sls$AW_stack
   }
 
-  data$folds <- create_cv_folds(n_folds, data[, y])
+  # Cluster ids ride along in the data as ".cid_<name>" columns, and the
+  # grouping that folds are formed on as ".cluster_fold_group"; see
+  # R/cluster_var.R.
+  cluster_id <- check_cluster_id(
+    resolve_cluster_id(id, data, y),
+    nrow(data),
+    verbose = TRUE
+  )
+  fold_groups <- cluster_fold_groups(cluster_id, n_folds, folds_by)
+  if (!is.null(cluster_id)) {
+    message(
+      "Cluster-robust standard errors on: ",
+      paste0(
+        names(cluster_id), " (",
+        vapply(cluster_id, function(x) length(unique(x)), numeric(1)),
+        " clusters)",
+        collapse = ", "
+      )
+    )
+    for (cluster_var_name in names(cluster_id)) {
+      data[[paste0(".cid_", cluster_var_name)]] <- cluster_id[[cluster_var_name]]
+    }
+    data$.cluster_fold_group <- fold_groups
+  }
+
+  data$folds <- create_cv_folds(n_folds, data[, y], id = fold_groups)
 
   if (parallel == TRUE) {
     if (parallel_type == "multi_session") {
@@ -295,7 +342,7 @@
 
 
   if (is.null(region)) {
-    fold_mixture_rules <- furrr::future_map(unique(data$folds),
+    fold_mixture_rules <- furrr::future_map(sort(unique(data$folds)),
       function(fold_k) {
         at <- data[data$folds != fold_k, ]
 
@@ -369,7 +416,11 @@
   }
 
 
-  results <- furrr::future_map(unique(data$folds), function(fold_k) {
+  # Folds are visited in sorted order: later steps look up each fold's rules
+  # and data by position (input_mix_rules[fold]), so list position k must be
+  # fold k. Unclustered folds already appear in that order; cluster-grouped
+  # folds need not.
+  results <- furrr::future_map(sort(unique(data$folds)), function(fold_k) {
     at <- data[data$folds != fold_k, ]
     av <- data[data$folds == fold_k, ]
 

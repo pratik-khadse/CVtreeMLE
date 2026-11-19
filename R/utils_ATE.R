@@ -10,6 +10,12 @@
 #' @param v_fold TRUE/FALSE whether to calculate v-fold specific ATE estimates
 #' @param naive This is for a one step estimator so Psi is calculated without TMLE update
 #'
+#' @details When \code{data} carries cluster ids (the ".cid_" columns added by
+#' \code{CVtreeMLE()} when \code{id} is given), the standard error is
+#' cluster-robust and confidence intervals and p-values use t critical values
+#' with (number of clusters - 1) degrees of freedom, returned as \code{df}.
+#' Otherwise \code{df} is \code{Inf} and normal critical values are used.
+#'
 #' @return A \code{numeric} vector of the same length as \code{vals}, where
 #'  the returned values are bounded to machine precision. This is intended to
 #'  avoid numerical instability issues.
@@ -38,12 +44,13 @@ calc_ate_estimates <- function(data,
   theta <- mean(data[, "thetas"])
 
   if (v_fold == TRUE) {
-    ics <- base::by(data, data$folds, function(data) {
-      result <- (data[, "h_aw"] * (data[, y] - data[, "qbar_aw_star"])) +
-        (data[, "qbar_1w_star"] - mean(data[, "qbar_1w_star"])) # -
-       #(data[, y] - mean(data[, y]))
-
-    })
+    # Centered within each fold, as before, but built as one vector in row
+    # order (base::by() returned a list grouped by fold), so each row's
+    # influence curve value stays next to its cluster id.
+    ics <- (data[, "h_aw"] * (data[, y] - data[, "qbar_aw_star"])) +
+      (data[, "qbar_1w_star"] -
+        stats::ave(data[, "qbar_1w_star"], data$folds)) # -
+    # (data[, y] - mean(data[, y]))
   } else {
     if (naive == TRUE) {
       ics <- (data[, "h_aw"] * (data[, y] - data[, "qbar_aw_star"])) +
@@ -60,19 +67,37 @@ calc_ate_estimates <- function(data,
   data[, "ic"] <- ics
 
   n <- dim(data)[1]
-  varhat_ic <- stats::var(data$ic, na.rm = TRUE) / n
+  cluster_id <- cluster_id_cols(data)
+  if (is.null(cluster_id)) {
+    varhat_ic <- stats::var(data$ic, na.rm = TRUE) / n
+    df <- Inf
+  } else {
+    # Sum the influence curve within clusters before taking the variance.
+    clustered <- clustered_ic_var(data$ic, cluster_id)
+    varhat_ic <- clustered$var / n
+    df <- clustered$df
+  }
   se <- sqrt(varhat_ic)
 
   alpha <- 0.05
 
-  # obtain 95% two-sided confidence intervals:
-  ci <- c(
-    theta + stats::qnorm(alpha / 2, lower.tail = TRUE) * se,
-    theta + stats::qnorm(alpha / 2, lower.tail = FALSE) * se
-  )
+  if (is.infinite(df)) {
+    # obtain 95% two-sided confidence intervals:
+    ci <- c(
+      theta + stats::qnorm(alpha / 2, lower.tail = TRUE) * se,
+      theta + stats::qnorm(alpha / 2, lower.tail = FALSE) * se
+    )
 
-  # p-value
-  p_value <- 2 * stats::pnorm(abs(theta / se), lower.tail = FALSE)
+    # p-value
+    p_value <- 2 * stats::pnorm(abs(theta / se), lower.tail = FALSE)
+  } else {
+    # Clustered: t critical values with (number of clusters - 1) df.
+    ci <- c(
+      theta + stats::qt(alpha / 2, df = df, lower.tail = TRUE) * se,
+      theta + stats::qt(alpha / 2, df = df, lower.tail = FALSE) * se
+    )
+    p_value <- 2 * stats::pt(abs(theta / se), df = df, lower.tail = FALSE)
+  }
 
   if (!is.null(p_adjust_n)) {
     p_value_adjust <-
@@ -83,7 +108,7 @@ calc_ate_estimates <- function(data,
 
   return(list(
     "ate" = theta, "se" = se, "ci" = ci, "p_value" = p_value,
-    "adj_p_value" = p_value_adjust, "data" = data
+    "adj_p_value" = p_value_adjust, "data" = data, "df" = df
   ))
 }
 

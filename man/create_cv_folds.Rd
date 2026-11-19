@@ -4,7 +4,7 @@
 \alias{create_cv_folds}
 \title{Stratified CV to insure balance (by one grouping variable, Y)}
 \usage{
-create_cv_folds(v, y, verbose = FALSE)
+create_cv_folds(v, y, verbose = FALSE, id = NULL)
 }
 \arguments{
 \item{v}{number of folds}
@@ -12,6 +12,12 @@ create_cv_folds(v, y, verbose = FALSE)
 \item{y}{Outcome variable. If binary will be used for stratification.}
 
 \item{verbose}{If T will display extra output.}
+
+\item{id}{Optional cluster grouping, one value per observation. When given,
+whole clusters are assigned to folds, so no cluster is split between
+training and validation data. With a binary outcome, clusters are
+stratified on whether they contain any event, which keeps events balanced
+across folds as far as whole clusters allow.}
 }
 \value{
 Vector of fold assignments.

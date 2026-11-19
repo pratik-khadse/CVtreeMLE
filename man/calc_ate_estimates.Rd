@@ -30,4 +30,10 @@ Calculate the ATE and variance estimates
 \details{
 Calculates the average treatment effect and variance estimates
 from the influence curve across folds
+
+When \code{data} carries cluster ids (the ".cid_" columns added by
+\code{CVtreeMLE()} when \code{id} is given), the standard error is
+cluster-robust and confidence intervals and p-values use t critical values
+with (number of clusters - 1) degrees of freedom, returned as \code{df}.
+Otherwise \code{df} is \code{Inf} and normal critical values are used.
 }

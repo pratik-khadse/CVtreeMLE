@@ -25,7 +25,11 @@ CVtreeMLE(
   pooled_rule_type = "average",
   min_max = "min",
   region = NULL,
-  min_obs = 25
+  max_depth = 2,
+  min_obs = 25,
+  p_val_thresh = 0.1,
+  id = NULL,
+  folds_by = NULL
 )
 }
 \arguments{
@@ -86,7 +90,32 @@ fold and is therefore more conservative.}
 
 \item{region}{If a predetermined region is of interest, put here: like "A < 0.02"}
 
+\item{max_depth}{Maximum depth to partition the exposures}
+
 \item{min_obs}{Minimum number of observations to have in a region.}
+
+\item{p_val_thresh}{P-value threshold for the tree search: a split is only
+accepted if its test p-value is below this value. Default 0.1.}
+
+\item{id}{Optional cluster identifier(s) for cluster-robust standard
+errors, for data where observations are not independent (e.g. siblings in a
+family, patients in a hospital). Either the name(s) of columns in
+\code{data}, a vector with one value per row, or a list / data frame with
+one element per clustering variable. When given: (1) the CV-TMLE folds keep
+each cluster within one fold, (2) the Super Learners for the Q and g
+estimates group their internal cross-validation by cluster, (3) standard
+errors sum the influence curve within clusters before taking the variance
+(the influence-curve form of \code{sandwich::vcovCL()}), using the Cameron,
+Gelbach & Miller (2011) estimator when there is more than one clustering
+variable, and (4) confidence intervals and p-values use t critical values
+with (number of clusters - 1) degrees of freedom. Id columns are used only
+for clustering; they are not covariates unless also listed in \code{w}.
+Default \code{NULL} gives the usual independent-observation results.}
+
+\item{folds_by}{With several clustering variables, the name of the one to
+form CV folds on. By default folds keep every clustering variable intact
+when possible (connected components), and otherwise fall back to the
+coarsest variable with at least \code{n_folds} clusters.}
 }
 \value{
 Object of class \code{CVtreeMLE}, containing a list of table results

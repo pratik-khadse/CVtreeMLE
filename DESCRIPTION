@@ -25,6 +25,7 @@ Imports:
     sl3,
     stats,
     stringr,
+    utils,
     MASS,
     ggplot2,
     furrr,
@@ -45,7 +46,8 @@ Suggests:
     kableExtra,
     covr,
     xgboost,
-    nnls
+    nnls,
+    sandwich
 Remotes: github::tlverse/sl3@devel,
 Encoding: UTF-8
 LazyData: true

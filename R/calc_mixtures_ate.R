@@ -201,10 +201,21 @@ calc_mixtures_ate <- function(input_mix_rules,
 
       # Calculate standard error and confidence intervals
       se_new_pooled <- sqrt(var_new_pooled)
-      lower_ci <- new_pooled_psi - 1.96 * se_new_pooled
-      upper_ci <- new_pooled_psi + 1.96 * se_new_pooled
+      if (is.infinite(ate_results$df)) {
+        lower_ci <- new_pooled_psi - 1.96 * se_new_pooled
+        upper_ci <- new_pooled_psi + 1.96 * se_new_pooled
 
-      p_value_pooled <- 2 * stats::pnorm(abs(new_pooled_psi / se_new_pooled), lower.tail = F)
+        p_value_pooled <- 2 * stats::pnorm(abs(new_pooled_psi / se_new_pooled), lower.tail = F)
+      } else {
+        # Clustered: t critical values with (number of clusters - 1) df.
+        t_crit <- stats::qt(0.975, df = ate_results$df)
+        lower_ci <- new_pooled_psi - t_crit * se_new_pooled
+        upper_ci <- new_pooled_psi + t_crit * se_new_pooled
+
+        p_value_pooled <- 2 * stats::pt(abs(new_pooled_psi / se_new_pooled),
+          df = ate_results$df, lower.tail = FALSE
+        )
+      }
 
       mixture_results_inv_variance$`Mixture ATE`[group] <- round(new_pooled_psi, 3)
       mixture_results_inv_variance$`Standard Error`[group] <- round(se_new_pooled, 3)
