@@ -202,6 +202,32 @@ Additional details for this and other features are given in the vignette.
 
 ---
 
+## Clustered data
+
+If observations are not independent, such as siblings in the same family or
+patients in the same hospital, pass the cluster identifier(s) to `id`.
+CVtreeMLE then keeps each cluster within one CV fold, groups the Super
+Learners' internal cross-validation by cluster, computes cluster-robust
+standard errors from the influence curve (the influence-curve form of
+`sandwich::vcovCL()`), and uses t critical values with (clusters - 1) degrees
+of freedom.
+
+```{r, eval = FALSE}
+results <- CVtreeMLE(
+  data = data, w = w, a = a, y = "y",
+  n_folds = 10, family = "continuous",
+  id = "family" # column in `data`, or a vector with one value per row
+)
+```
+
+`id` can name several columns, e.g. `id = c("family", "site")`. If one is
+nested in another, clustering uses the outer one; otherwise multiway
+clustering (Cameron, Gelbach & Miller 2011) is used. Id columns are used only
+for clustering, not as covariates, unless also listed in `w`. With
+`id = NULL` (the default), results are identical to before.
+
+---
+
 ## Issues
 
 If you encounter any bugs or have any specific feature requests, 
